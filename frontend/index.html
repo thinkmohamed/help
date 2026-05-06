@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام التحليل الجيومكاني - Geospatial Analysis System</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+    <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                    <circle cx="18" cy="18" r="16" stroke="#e67e22" stroke-width="2" fill="none"/>
+                    <circle cx="18" cy="18" r="8" stroke="#e67e22" stroke-width="1.5" fill="none"/>
+                    <line x1="18" y1="2" x2="18" y2="34" stroke="#e67e22" stroke-width="1" opacity="0.5"/>
+                    <line x1="2" y1="18" x2="34" y2="18" stroke="#e67e22" stroke-width="1" opacity="0.5"/>
+                    <circle cx="18" cy="18" r="3" fill="#e67e22"/>
+                </svg>
+                <div>
+                    <h1>نظام التحليل الجيومكاني</h1>
+                    <span class="subtitle">Geospatial Analysis System</span>
+                </div>
+            </div>
+            <div class="header-actions">
+                <button id="btn-new-analysis" class="btn btn-primary" onclick="resetAnalysis()">تحليل جديد</button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="main-container">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <!-- Step 1: AOI -->
+            <div class="panel" id="panel-aoi">
+                <div class="panel-header">
+                    <span class="step-badge">1</span>
+                    <h3>تحديد المنطقة الجغرافية</h3>
+                </div>
+                <div class="panel-body">
+                    <p class="hint">ارسم مضلعًا على الخريطة لتحديد منطقة الاهتمام (AOI)</p>
+                    <div class="form-group">
+                        <label>اسم المنطقة</label>
+                        <input type="text" id="aoi-name" placeholder="مثال: منطقة أثرية - الجيزة" />
+                    </div>
+                    <div class="form-group">
+                        <label>منطقة عازلة (كم)</label>
+                        <input type="number" id="aoi-buffer" value="5" min="0" max="50" step="1" />
+                    </div>
+                    <div id="aoi-status" class="status-box hidden">
+                        <span class="status-icon"></span>
+                        <span class="status-text"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Data Sources -->
+            <div class="panel" id="panel-sources">
+                <div class="panel-header">
+                    <span class="step-badge">2</span>
+                    <h3>مصادر البيانات</h3>
+                </div>
+                <div class="panel-body">
+                    <div id="data-sources-list" class="sources-list">
+                        <!-- Populated by JS -->
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>من تاريخ</label>
+                            <input type="date" id="date-from" value="2024-01-01" />
+                        </div>
+                        <div class="form-group">
+                            <label>إلى تاريخ</label>
+                            <input type="date" id="date-to" value="2024-12-31" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>أقصى تغطية سحابية (%)</label>
+                        <input type="range" id="cloud-cover" min="0" max="100" value="20" oninput="document.getElementById('cloud-val').textContent=this.value+'%'" />
+                        <span id="cloud-val" class="range-value">20%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Analysis Config -->
+            <div class="panel" id="panel-analysis">
+                <div class="panel-header">
+                    <span class="step-badge">3</span>
+                    <h3>إعدادات التحليل</h3>
+                </div>
+                <div class="panel-body">
+                    <h4>طبقات المعالجة</h4>
+                    <div id="analysis-types" class="checkbox-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                    <h4 style="margin-top:12px">نماذج الذكاء الاصطناعي</h4>
+                    <div id="ml-models" class="checkbox-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                    <div class="form-group" style="margin-top:12px">
+                        <label>عتبة الثقة</label>
+                        <input type="range" id="threshold" min="0" max="100" value="50" oninput="document.getElementById('thresh-val').textContent=this.value+'%'" />
+                        <span id="thresh-val" class="range-value">50%</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Run Button -->
+            <button id="btn-run" class="btn btn-run" onclick="startAnalysis()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                بدء التحليل
+            </button>
+        </aside>
+
+        <!-- Map & Results -->
+        <main class="content">
+            <div id="map-container">
+                <div id="map"></div>
+            </div>
+
+            <!-- Progress -->
+            <div id="progress-panel" class="progress-panel hidden">
+                <div class="progress-header">
+                    <h3>جاري التحليل...</h3>
+                    <span id="progress-percent">0%</span>
+                </div>
+                <div class="progress-bar">
+                    <div id="progress-fill" class="progress-fill"></div>
+                </div>
+                <p id="progress-message" class="progress-message">في انتظار البدء...</p>
+                <div id="pipeline-stages" class="pipeline-stages"></div>
+            </div>
+
+            <!-- Results -->
+            <div id="results-panel" class="results-panel hidden">
+                <div class="results-header">
+                    <h3>نتائج التحليل</h3>
+                    <div class="results-actions">
+                        <button class="btn btn-sm" onclick="downloadReport('json')">تقرير JSON</button>
+                        <button class="btn btn-sm" onclick="downloadReport('html')">تقرير HTML</button>
+                    </div>
+                </div>
+                <div id="detections-grid" class="detections-grid">
+                    <!-- Populated by JS -->
+                </div>
+                <div id="maps-gallery" class="maps-gallery">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Pipeline Flow Diagram -->
+    <div id="flow-diagram" class="flow-diagram">
+        <h3>مخطط سير العمل</h3>
+        <div class="flow-container">
+            <div class="flow-step" data-stage="aoi">
+                <div class="flow-icon">AOI</div>
+                <div class="flow-label">تحديد المنطقة</div>
+            </div>
+            <div class="flow-arrow"></div>
+            <div class="flow-step" data-stage="data">
+                <div class="flow-icon">DATA</div>
+                <div class="flow-label">مصادر البيانات</div>
+            </div>
+            <div class="flow-arrow"></div>
+            <div class="flow-step" data-stage="process">
+                <div class="flow-icon">PROC</div>
+                <div class="flow-label">المعالجة</div>
+            </div>
+            <div class="flow-arrow"></div>
+            <div class="flow-step" data-stage="fusion">
+                <div class="flow-icon">FUSE</div>
+                <div class="flow-label">دمج البيانات</div>
+            </div>
+            <div class="flow-arrow"></div>
+            <div class="flow-step" data-stage="ml">
+                <div class="flow-icon">ML</div>
+                <div class="flow-label">الذكاء الاصطناعي</div>
+            </div>
+            <div class="flow-arrow"></div>
+            <div class="flow-step" data-stage="ensemble">
+                <div class="flow-icon">ENS</div>
+                <div class="flow-label">نظام التصويت</div>
+            </div>
+            <div class="flow-arrow"></div>
+            <div class="flow-step" data-stage="output">
+                <div class="flow-icon">OUT</div>
+                <div class="flow-label">النتائج</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
