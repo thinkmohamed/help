@@ -22,17 +22,17 @@ def save(kind: str, key: str, value: dict[str, Any]) -> None:
 
 def load(kind: str, key: str) -> dict[str, Any] | None:
     p = _path(kind, key)
-    if not p.exists():
-        return None
     with _lock:
+        if not p.exists():
+            return None
         return json.loads(p.read_text())
 
 
 def delete(kind: str, key: str) -> bool:
     p = _path(kind, key)
-    if not p.exists():
-        return False
     with _lock:
+        if not p.exists():
+            return False
         p.unlink()
     return True
 
